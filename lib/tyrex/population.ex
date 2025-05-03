@@ -41,11 +41,9 @@ defmodule Tyrex.Population do
   Returns the diversity of the population, based on the provided distance function.
   """
   def diversity(population, distance_fn) do
-    # Sample a subset of the population for efficiency if it's large
     sample_size = min(length(population), 20)
     sample = Enum.take_random(population, sample_size)
 
-    # Calculate average distance between all pairs
     pairs = for i <- sample, j <- sample, i != j, do: {i, j}
 
     if length(pairs) > 0 do

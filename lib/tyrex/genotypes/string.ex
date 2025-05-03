@@ -112,7 +112,6 @@ defmodule Tyrex.Genotypes.String do
   def string_match_fitness(individual, target) do
     target_chars = String.to_charlist(target)
 
-    # Calculate how many characters match the target string
     Enum.zip(individual.genes, target_chars)
     |> Enum.count(fn {a, b} -> a == b end)
   end
@@ -123,10 +122,8 @@ defmodule Tyrex.Genotypes.String do
   Distance is the number of positions where the characters differ (Hamming distance).
   """
   def distance(individual1, individual2) do
-    # Ensure genes are same length
     min_length = min(length(individual1.genes), length(individual2.genes))
 
-    # Count differing positions
     Enum.zip(Enum.take(individual1.genes, min_length), Enum.take(individual2.genes, min_length))
     |> Enum.count(fn {a, b} -> a != b end)
   end

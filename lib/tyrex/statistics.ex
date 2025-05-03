@@ -32,7 +32,6 @@ defmodule Tyrex.Statistics do
     best = hd(sorted_population)
     avg_fitness = Enum.sum(Enum.map(population, & &1.fitness)) / length(population)
 
-    # Calculate diversity if a distance function is provided
     diversity =
       case Keyword.get(opts, :distance_fn) do
         nil ->
@@ -43,7 +42,6 @@ defmodule Tyrex.Statistics do
           stats.diversity ++ [current_diversity]
       end
 
-    # Update stats
     %{
       stats
       | generations: generation,
@@ -92,10 +90,8 @@ defmodule Tyrex.Statistics do
     filename = Keyword.get(options, :filename, "fitness.png")
     title = Keyword.get(options, :title, "Fitness Progress")
 
-    # Create temporary data file
     data_file = Path.join(System.tmp_dir(), "fitness_data.txt")
 
-    # Write data to temporary file
     data =
       for i <- 0..(length(stats.best_fitness) - 1) do
         "#{i}\t#{Enum.at(stats.best_fitness, i)}\t#{Enum.at(stats.average_fitness, i)}"
@@ -103,7 +99,6 @@ defmodule Tyrex.Statistics do
 
     File.write!(data_file, Enum.join(data, "\n"))
 
-    # Create gnuplot script
     gnuplot_script = """
     set terminal png size 800,600
     set output "#{filename}"
@@ -118,10 +113,8 @@ defmodule Tyrex.Statistics do
     script_file = Path.join(System.tmp_dir(), "fitness_plot.gp")
     File.write!(script_file, gnuplot_script)
 
-    # Execute gnuplot
     System.cmd("gnuplot", [script_file])
 
-    # Clean up
     File.rm(data_file)
     File.rm(script_file)
 
@@ -147,13 +140,10 @@ defmodule Tyrex.Statistics do
   Saves statistics to a JSON file.
   """
   def save(stats, filename) do
-    # Convert stats to a map
     stats_map = Map.from_struct(stats)
 
-    # Serialize to JSON
     json = Poison.encode!(stats_map, pretty: true)
 
-    # Write to file
     File.write!(filename, json)
 
     {:ok, filename}
@@ -163,13 +153,10 @@ defmodule Tyrex.Statistics do
   Loads statistics from a JSON file.
   """
   def load(filename) do
-    # Read from file
     {:ok, json} = File.read(filename)
 
-    # Deserialize from JSON
     {:ok, stats_map} = Poison.decode(json)
 
-    # Convert to struct
     stats = struct(Tyrex.Statistics, Map.new(stats_map, fn {k, v} -> {String.to_atom(k), v} end))
 
     {:ok, stats}

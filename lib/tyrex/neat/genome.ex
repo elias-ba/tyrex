@@ -49,10 +49,8 @@ defmodule Tyrex.NEAT.Genome do
     outputs = Keyword.get(opts, :outputs, 1)
     bias = Keyword.get(opts, :bias, true)
 
-    # Create nodes
     input_nodes = 0..(inputs - 1)
 
-    # Add bias node if needed
     input_nodes =
       if bias do
         Enum.to_list(input_nodes) ++ [inputs]
@@ -65,7 +63,6 @@ defmodule Tyrex.NEAT.Genome do
 
     nodes = MapSet.new(input_nodes ++ Enum.to_list(output_nodes))
 
-    # Create genes (fully connected)
     genes =
       for in_node <- input_nodes, out_node <- output_nodes do
         %{
@@ -99,15 +96,12 @@ defmodule Tyrex.NEAT.Genome do
     c2 = Keyword.get(opts, :c2, 1.0)
     c3 = Keyword.get(opts, :c3, 0.4)
 
-    # Convert genes to maps for efficient lookup
     g1_by_innov = Map.new(genome1.genes, fn g -> {g.innovation, g} end)
     g2_by_innov = Map.new(genome2.genes, fn g -> {g.innovation, g} end)
 
-    # Get all innovation numbers
     g1_innovations = MapSet.new(Map.keys(g1_by_innov))
     g2_innovations = MapSet.new(Map.keys(g2_by_innov))
 
-    # Find matching, disjoint, and excess genes
     max_innov1 = if Enum.empty?(g1_innovations), do: 0, else: Enum.max(g1_innovations)
     max_innov2 = if Enum.empty?(g2_innovations), do: 0, else: Enum.max(g2_innovations)
 
@@ -141,7 +135,6 @@ defmodule Tyrex.NEAT.Genome do
 
     excess = MapSet.union(excess1, excess2)
 
-    # Calculate weight differences for matching genes
     weight_diffs =
       Enum.map(matching, fn i ->
         g1 = Map.get(g1_by_innov, i)
@@ -152,7 +145,6 @@ defmodule Tyrex.NEAT.Genome do
     avg_weight_diff =
       if Enum.empty?(weight_diffs), do: 0.0, else: Enum.sum(weight_diffs) / length(weight_diffs)
 
-    # Calculate compatibility distance
     n = max(1, max(length(genome1.genes), length(genome2.genes)))
 
     c1 * MapSet.size(excess) / n + c2 * MapSet.size(disjoint) / n + c3 * avg_weight_diff
@@ -165,19 +157,15 @@ defmodule Tyrex.NEAT.Genome do
   For matching genes, they are randomly inherited from either parent.
   """
   def crossover(parent1, parent2) do
-    # Ensure parent1 is the more fit parent
     {parent1, parent2} =
       if parent1.fitness >= parent2.fitness, do: {parent1, parent2}, else: {parent2, parent1}
 
-    # Convert genes to maps for efficient lookup
     p1_by_innov = Map.new(parent1.genes, fn g -> {g.innovation, g} end)
     p2_by_innov = Map.new(parent2.genes, fn g -> {g.innovation, g} end)
 
-    # Get all innovation numbers
     p1_innovations = Map.keys(p1_by_innov)
     p2_innovations = Map.keys(p2_by_innov)
 
-    # Find matching genes
     matching = Enum.filter(p1_innovations, fn i -> i in p2_innovations end)
 
     # Create child genes
@@ -195,7 +183,6 @@ defmodule Tyrex.NEAT.Genome do
           Map.get(p1_by_innov, i)
         end)
 
-    # Collect all nodes
     nodes = collect_nodes(child_genes)
 
     %__MODULE__{
@@ -214,7 +201,6 @@ defmodule Tyrex.NEAT.Genome do
     if Enum.empty?(genome.genes) do
       genome
     else
-      # Select a random enabled connection
       enabled_genes = Enum.filter(genome.genes, & &1.enabled)
 
       if Enum.empty?(enabled_genes) do
@@ -222,10 +208,8 @@ defmodule Tyrex.NEAT.Genome do
       else
         gene = Enum.random(enabled_genes)
 
-        # Create a new node
         new_node = InnovationCounter.get_node_innovation()
 
-        # Create two new connections
         in_to_new = %{
           innovation: InnovationCounter.get_innovation(gene.in_node, new_node),
           in_node: gene.in_node,
@@ -244,7 +228,6 @@ defmodule Tyrex.NEAT.Genome do
           enabled: true
         }
 
-        # Disable the original connection
         modified_genes =
           Enum.map(genome.genes, fn g ->
             if g.innovation == gene.innovation do
@@ -254,7 +237,6 @@ defmodule Tyrex.NEAT.Genome do
             end
           end)
 
-        # Add the new genes and node
         new_genes = [in_to_new, new_to_out | modified_genes]
         new_nodes = MapSet.put(genome.nodes, new_node)
 
@@ -267,11 +249,9 @@ defmodule Tyrex.NEAT.Genome do
   Mutates a genome by adding a new connection between existing nodes.
   """
   def add_connection_mutation(genome, opts \\ []) do
-    # Get all nodes, separated by type
     input_count = Keyword.get(opts, :inputs, 0)
     output_count = Keyword.get(opts, :outputs, 0)
 
-    # Assuming nodes are numbered appropriately
     input_nodes = Enum.filter(genome.nodes, fn n -> n < input_count end)
 
     output_nodes =
@@ -279,19 +259,15 @@ defmodule Tyrex.NEAT.Genome do
 
     hidden_nodes = Enum.filter(genome.nodes, fn n -> n >= input_count + output_count end)
 
-    # Get existing connections
     existing_connections = MapSet.new(Enum.map(genome.genes, fn g -> {g.in_node, g.out_node} end))
 
-    # Try to find a valid new connection (no recurrent connections for simplicity)
     pair = find_valid_connection(input_nodes, hidden_nodes, output_nodes, existing_connections)
 
     case pair do
       nil ->
-        # No valid connection found
         genome
 
       {in_node, out_node} ->
-        # Create a new connection
         new_gene = %{
           innovation: InnovationCounter.get_innovation(in_node, out_node),
           in_node: in_node,
@@ -319,10 +295,8 @@ defmodule Tyrex.NEAT.Genome do
     new_genes =
       Enum.map(genome.genes, fn gene ->
         if :rand.uniform() < perturbation_rate do
-          # Perturb the weight
           %{gene | weight: gene.weight + :rand.normal() * perturbation_power}
         else
-          # Assign a new random weight
           %{gene | weight: :rand.normal() * 2.0}
         end
       end)
@@ -337,10 +311,8 @@ defmodule Tyrex.NEAT.Genome do
     if Enum.empty?(genome.genes) do
       genome
     else
-      # Select a random gene
       gene = Enum.random(genome.genes)
 
-      # Toggle its enabled status
       modified_genes =
         Enum.map(genome.genes, fn g ->
           if g.innovation == gene.innovation do
@@ -370,7 +342,6 @@ defmodule Tyrex.NEAT.Genome do
     weight_mutation_rate = Keyword.get(opts, :weight_mutation_rate, 0.8)
     toggle_connection_rate = Keyword.get(opts, :toggle_connection_rate, 0.01)
 
-    # Apply mutations
     genome
     |> maybe_apply(add_node_rate, &add_node_mutation/1)
     |> maybe_apply(add_connection_rate, &add_connection_mutation/2, [opts])
@@ -378,7 +349,6 @@ defmodule Tyrex.NEAT.Genome do
     |> maybe_apply(toggle_connection_rate, &toggle_connection_mutation/1)
   end
 
-  # Helper function to maybe apply a mutation with a certain probability
   defp maybe_apply(genome, probability, mutation_fn, args \\ []) do
     if :rand.uniform() < probability do
       apply(mutation_fn, [genome | args])
@@ -387,7 +357,6 @@ defmodule Tyrex.NEAT.Genome do
     end
   end
 
-  # Helper function to collect all nodes from genes
   defp collect_nodes(genes) do
     Enum.reduce(genes, MapSet.new(), fn gene, acc ->
       acc
@@ -396,30 +365,24 @@ defmodule Tyrex.NEAT.Genome do
     end)
   end
 
-  # Helper function to find a valid new connection
   defp find_valid_connection(input_nodes, hidden_nodes, output_nodes, existing_connections) do
-    # Try different types of connections
     find_connection_between(hidden_nodes, output_nodes, existing_connections) ||
       find_connection_between(input_nodes, hidden_nodes, existing_connections) ||
       find_connection_between(input_nodes, output_nodes, existing_connections) ||
       find_connection_between(hidden_nodes, hidden_nodes, existing_connections)
   end
 
-  # Helper function to find a connection between two sets of nodes
   defp find_connection_between(sources, targets, existing_connections) do
     if Enum.empty?(sources) || Enum.empty?(targets) do
       nil
     else
-      # Create all possible pairs
       pairs = for source <- sources, target <- targets, do: {source, target}
 
-      # Filter out existing connections and invalid connections (recurrent)
       valid_pairs =
         Enum.filter(pairs, fn {source, target} ->
           source != target && {source, target} not in existing_connections
         end)
 
-      # Return a random valid pair, or nil if none found
       if Enum.empty?(valid_pairs) do
         nil
       else

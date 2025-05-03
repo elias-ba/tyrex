@@ -63,14 +63,12 @@ defmodule Tyrex.NEAT.InnovationCounter do
 
     case Map.get(state.innovations, key) do
       nil ->
-        # New connection, assign a new innovation number
         innovation = state.next_innovation
         innovations = Map.put(state.innovations, key, innovation)
 
         {:reply, innovation, %{state | innovations: innovations, next_innovation: innovation + 1}}
 
       existing_innovation ->
-        # Connection already exists
         {:reply, existing_innovation, state}
     end
   end

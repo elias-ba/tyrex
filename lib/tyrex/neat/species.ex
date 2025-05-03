@@ -22,23 +22,19 @@ defmodule Tyrex.NEAT.Species do
     compatibility_threshold = Keyword.get(opts, :compatibility_threshold, 3.0)
     representatives = Keyword.get(opts, :species_representatives, %{})
 
-    # If no representatives, create new species with first genome
     if map_size(representatives) == 0 && length(population) > 0 do
       [first | rest] = population
       first = %{first | species_id: 1}
       representatives = %{1 => first}
 
-      # Process the rest of the population
       {species_members, updated_representatives} =
         process_population(rest, representatives, compatibility_threshold)
 
-      # Add the first genome to its species
       species_members =
         Map.update(species_members, 1, [first], fn members -> [first | members] end)
 
       {species_members, updated_representatives}
     else
-      # Process the population
       process_population(population, representatives, compatibility_threshold)
     end
   end
@@ -50,13 +46,10 @@ defmodule Tyrex.NEAT.Species do
   among members of the same species.
   """
   def adjust_fitness(species_members) do
-    # For each species, adjust the fitness of its members
     species_members
     |> Enum.flat_map(fn {_species_id, members} ->
-      # Number of members in this species
       n = length(members)
 
-      # Adjust fitness for each member
       Enum.map(members, fn genome ->
         %{genome | adjusted_fitness: genome.fitness / n}
       end)
@@ -69,7 +62,6 @@ defmodule Tyrex.NEAT.Species do
   Returns a map of species ID to number of offspring.
   """
   def allocate_offspring(species_members, population_size) do
-    # Calculate total adjusted fitness for each species
     species_fitness =
       Enum.map(species_members, fn {species_id, members} ->
         total_adjusted_fitness = Enum.sum(Enum.map(members, & &1.adjusted_fitness))
@@ -77,28 +69,22 @@ defmodule Tyrex.NEAT.Species do
       end)
       |> Enum.filter(fn {_, fitness} -> fitness > 0 end)
 
-    # Calculate total adjusted fitness across all species
     total_fitness = Enum.sum(Enum.map(species_fitness, fn {_, fitness} -> fitness end))
 
     if total_fitness <= 0 do
-      # If total fitness is zero or negative, allocate equally
       species_count = map_size(species_members)
       equal_share = div(population_size, max(1, species_count))
 
       Map.new(Map.keys(species_members), fn species_id -> {species_id, equal_share} end)
     else
-      # Allocate offspring based on adjusted fitness proportion
       offspring =
         Enum.map(species_fitness, fn {species_id, fitness} ->
-          # Calculate expected offspring
           expected = fitness / total_fitness * population_size
 
-          # Ensure at least one offspring if the species has any fitness
           {species_id, max(1, trunc(expected))}
         end)
         |> Map.new()
 
-      # Adjust for rounding errors to ensure we get exactly population_size offspring
       adjust_offspring_count(offspring, population_size)
     end
   end
@@ -124,20 +110,15 @@ defmodule Tyrex.NEAT.Species do
         toggle_connection_rate: 0.01
       })
 
-    # For each species, create the next generation
     Enum.flat_map(species_members, fn {species_id, members} ->
-      # Sort members by fitness
       sorted_members = Enum.sort_by(members, & &1.fitness, :desc)
 
-      # Get the number of offspring for this species
       offspring_count = Map.get(offspring_allocation, species_id, 0)
 
       if offspring_count > 0 do
-        # Keep elites (but no more than offspring_count)
         elite_count = min(elitism, offspring_count)
         elites = Enum.take(sorted_members, elite_count)
 
-        # Create offspring for the rest
         offspring_needed = offspring_count - elite_count
 
         offspring =
@@ -153,7 +134,6 @@ defmodule Tyrex.NEAT.Species do
             []
           end
 
-        # Combine elites and offspring
         elites ++ offspring
       else
         []
@@ -165,24 +145,18 @@ defmodule Tyrex.NEAT.Species do
   Gets representative genomes for each species.
   """
   def get_representatives(species_members) do
-    # For each species, select a random member as representative
     Enum.map(species_members, fn {species_id, members} ->
       {species_id, Enum.random(members)}
     end)
     |> Map.new()
   end
 
-  # Helper function to process the population for speciation
   defp process_population(population, representatives, compatibility_threshold) do
-    # Initialize species members
     species_members = Map.new(Map.keys(representatives), fn id -> {id, []} end)
 
-    # Process each genome
     Enum.reduce(population, {species_members, representatives}, fn genome, {members, reps} ->
-      # Find the species this genome belongs to
       {species_id, updated_reps} = find_species(genome, reps, compatibility_threshold)
 
-      # Add the genome to its species
       updated_genome = %{genome | species_id: species_id}
 
       updated_members =
@@ -192,9 +166,7 @@ defmodule Tyrex.NEAT.Species do
     end)
   end
 
-  # Helper function to find the species a genome belongs to
   defp find_species(genome, representatives, compatibility_threshold) do
-    # Find the first species with distance below threshold
     species_match =
       Enum.find(representatives, fn {_, rep} ->
         Genome.distance(genome, rep) < compatibility_threshold
@@ -202,26 +174,21 @@ defmodule Tyrex.NEAT.Species do
 
     case species_match do
       {id, _} ->
-        # Genome belongs to an existing species
         {id, representatives}
 
       nil ->
-        # Create a new species for this genome
         new_id = map_size(representatives) + 1
         {new_id, Map.put(representatives, new_id, genome)}
     end
   end
 
-  # Helper function to adjust offspring count to match population size
   defp adjust_offspring_count(offspring, target_size) do
     total = Enum.sum(Map.values(offspring))
 
     cond do
       total < target_size ->
-        # Need to add offspring
         diff = target_size - total
 
-        # Add to the species with highest fitness first
         sorted_species = Enum.sort_by(offspring, fn {_, count} -> count end, :desc)
 
         Enum.reduce(1..diff, offspring, fn _, acc ->
@@ -230,10 +197,8 @@ defmodule Tyrex.NEAT.Species do
         end)
 
       total > target_size ->
-        # Need to remove offspring
         diff = total - target_size
 
-        # Remove from the species with lowest fitness first
         sorted_species = Enum.sort_by(offspring, fn {_, count} -> count end)
 
         Enum.reduce(1..diff, offspring, fn _, acc ->
@@ -242,40 +207,30 @@ defmodule Tyrex.NEAT.Species do
         end)
 
       true ->
-        # Already matching
         offspring
     end
   end
 
-  # Helper function to create offspring for a species
   defp create_offspring(members, count, species_id, crossover_rate, mutation_rates) do
     for _ <- 1..count do
-      # Select parents
       parent1 = tournament_selection(members)
       parent2 = tournament_selection(members)
 
-      # Create offspring
       child =
         if :rand.uniform() < crossover_rate && length(members) > 1 do
-          # Crossover
           offspring = Genome.crossover(parent1, parent2)
           %{offspring | species_id: species_id}
         else
-          # No crossover, just clone parent1
           %{parent1 | species_id: species_id}
         end
 
-      # Mutate
       Genome.mutate(child, Map.to_list(mutation_rates))
     end
   end
 
-  # Helper function for tournament selection
   defp tournament_selection(members, tournament_size \\ 3) do
-    # Select tournament_size random members
     tournament = Enum.take_random(members, min(tournament_size, length(members)))
 
-    # Return the best
     Enum.max_by(tournament, & &1.fitness)
   end
 end

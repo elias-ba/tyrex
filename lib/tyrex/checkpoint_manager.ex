@@ -38,7 +38,6 @@ defmodule Tyrex.CheckpointManager do
 
   @impl true
   def init(_) do
-    # Create checkpoint directory if it doesn't exist
     checkpoint_dir = checkpoint_directory()
     File.mkdir_p!(checkpoint_dir)
 
@@ -47,10 +46,8 @@ defmodule Tyrex.CheckpointManager do
 
   @impl true
   def handle_call({:save, run_id, state}, _from, manager_state) do
-    # Serialize the state
     binary = :erlang.term_to_binary(state)
 
-    # Save to file
     filename = checkpoint_filename(run_id)
     File.write!(filename, binary)
 
@@ -62,7 +59,6 @@ defmodule Tyrex.CheckpointManager do
     filename = checkpoint_filename(run_id)
 
     if File.exists?(filename) do
-      # Load and deserialize
       binary = File.read!(filename)
       state = :erlang.binary_to_term(binary)
 
@@ -141,10 +137,8 @@ defmodule Tyrex.CheckpointManager do
   Saves a checkpoint to a custom location.
   """
   def save_to_file(state, filename) do
-    # Serialize the state
     binary = :erlang.term_to_binary(state)
 
-    # Save to file
     File.write!(filename, binary)
 
     :ok
@@ -155,7 +149,6 @@ defmodule Tyrex.CheckpointManager do
   """
   def load_from_file(filename) do
     if File.exists?(filename) do
-      # Load and deserialize
       binary = File.read!(filename)
       state = :erlang.binary_to_term(binary)
 

@@ -49,13 +49,10 @@ defmodule Tyrex do
     elitism = Keyword.get(opts, :elitism, 1)
     parallel_opts = Keyword.get(opts, :parallel, [])
 
-    # Create a statistics structure to track progress
     stats = %Tyrex.Statistics{}
 
-    # Initialize population
     population = problem.genotype.initialize(population_size, problem.genotype_params || [])
 
-    # Run evolution loop
     evolve(
       population,
       problem,
@@ -67,7 +64,6 @@ defmodule Tyrex do
       stats,
       0,
       max_generations,
-      # Pass population_size to the evolve function
       population_size
     )
   end
@@ -78,10 +74,8 @@ defmodule Tyrex do
   Returns a run_id that can be used to check status and retrieve results.
   """
   def run_async(problem, opts \\ []) do
-    # Generate a unique ID for this run
     run_id = System.unique_integer([:positive]) |> to_string
 
-    # Start a new evolution process
     {:ok, _pid} =
       DynamicSupervisor.start_child(
         Tyrex.EvolutionSupervisor,
@@ -95,7 +89,6 @@ defmodule Tyrex do
   Gets the current status of an asynchronous evolution run.
   """
   def status(run_id) do
-    # Look up the process by run_id
     case Registry.lookup(Tyrex.Registry, run_id) do
       [{pid, _}] -> GenServer.call(pid, :status)
       [] -> {:error, :not_found}
@@ -106,14 +99,12 @@ defmodule Tyrex do
   Stops an asynchronous evolution run.
   """
   def stop(run_id) do
-    # Look up the process by run_id
     case Registry.lookup(Tyrex.Registry, run_id) do
       [{pid, _}] -> DynamicSupervisor.terminate_child(Tyrex.EvolutionSupervisor, pid)
       [] -> {:error, :not_found}
     end
   end
 
-  # Private function to run the evolution loop
   defp evolve(
          population,
          problem,
@@ -125,38 +116,29 @@ defmodule Tyrex do
          stats,
          generation,
          max_generations,
-         # Added population_size parameter
          population_size
        ) do
-    # Evaluate fitness
     population = Evaluator.evaluate(population, problem.fitness_function, parallel_opts)
 
-    # Sort by fitness
     sorted_population = Enum.sort_by(population, & &1.fitness, :desc)
     best = hd(sorted_population)
 
-    # Update statistics
     stats = Tyrex.Statistics.update(stats, sorted_population, generation)
 
-    # Check termination criteria
     if problem.termination.(sorted_population, generation) || generation >= max_generations do
       {best, stats}
     else
-      # Keep elites
       elites = Enum.take(sorted_population, elitism)
 
-      # Create next generation
       next_generation =
         sorted_population
         |> Selection.select(selection_strategy)
         |> Crossover.crossover(problem.genotype.crossover, crossover_rate)
         |> Mutation.mutate(problem.genotype.mutate, mutation_rate)
 
-      # Add elites back
       next_generation_with_elites =
         elites ++ Enum.take(next_generation, population_size - elitism)
 
-      # Recur to next generation
       evolve(
         next_generation_with_elites,
         problem,
@@ -168,7 +150,6 @@ defmodule Tyrex do
         stats,
         generation + 1,
         max_generations,
-        # Pass population_size to the next recursion
         population_size
       )
     end

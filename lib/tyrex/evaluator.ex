@@ -55,19 +55,15 @@ defmodule Tyrex.Evaluator do
     chunk_size = Keyword.get(opts, :chunk_size, 10)
     timeout = Keyword.get(opts, :timeout, 5000)
 
-    # Get all connected nodes
     nodes = [node() | Node.list()]
 
     if length(nodes) <= 1 do
-      # Not enough nodes, fall back to parallel evaluation
       evaluate_parallel(population, fitness_function, System.schedulers_online(), timeout)
     else
-      # Distribute population in chunks across nodes
       population
       |> Enum.chunk_every(chunk_size)
       |> Enum.zip(Stream.cycle(nodes))
       |> Enum.flat_map(fn {chunk, node} ->
-        # Send evaluation task to the node
         Task.Supervisor.async({Tyrex.TaskSupervisor, node}, fn ->
           Enum.map(chunk, fn individual ->
             %{individual | fitness: fitness_function.(individual)}
@@ -82,16 +78,13 @@ defmodule Tyrex.Evaluator do
   Creates a memoized fitness function that caches results.
   """
   def memoize(fitness_function) do
-    # Create an ETS table for the cache
     table = :ets.new(:fitness_cache, [:set, :public])
 
-    # Return a function that checks the cache first
     fn individual ->
       key = :erlang.phash2(individual)
 
       case :ets.lookup(table, key) do
         [{^key, fitness}] ->
-          # Cache hit
           fitness
 
         [] ->
