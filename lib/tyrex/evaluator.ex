@@ -88,7 +88,6 @@ defmodule Tyrex.Evaluator do
           fitness
 
         [] ->
-          # Cache miss
           fitness = fitness_function.(individual)
           :ets.insert(table, {key, fitness})
           fitness
