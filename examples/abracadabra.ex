@@ -1,0 +1,159 @@
+defmodule Tyrex.Examples.Abracadabra do
+  @moduledoc """
+  Example of solving the abracadabra problem with genetic algorithms.
+
+  The abracadabra problem is to evolve a program that produces the string "abracadabra".
+  """
+
+  @doc """
+  Runs the example using the standard genetic algorithm approach.
+  """
+  def run_standard do
+    # Create a problem definition
+    problem = %Tyrex.Problem{
+      name: "Abracadabra",
+      genotype: Tyrex.Genotypes.String,
+      genotype_params: [length: 11],  # "abracadabra" has 11 characters
+      fitness_function: &fitness_function/1,
+      termination: &termination_function/2
+    }
+
+    # Run the genetic algorithm
+    {best, stats} = Tyrex.run(problem,
+      population_size: 100,
+      max_generations: 100,
+      selection_strategy: {Tyrex.Selection.Tournament, tournament_size: 3},
+      crossover_rate: 0.7,
+      mutation_rate: 0.05
+    )
+
+    # Print results
+    IO.puts("=== Abracadabra Problem (Standard GA) ===")
+    IO.puts("Best solution: #{Tyrex.Genotypes.String.to_string(best)}")
+    IO.puts("Fitness: #{best.fitness}")
+    IO.puts("Generations: #{stats.generations}")
+    IO.puts("Duration: #{stats.duration} seconds")
+
+    {best, stats}
+  end
+
+  @doc """
+  Runs the example using the NEAT approach.
+  """
+  def run_neat do
+    # Create a NEAT problem definition
+    problem = %Tyrex.Problem{
+      name: "Abracadabra NEAT",
+      fitness_function: &neat_fitness_function/2,
+      termination: &termination_function/2
+    }
+
+    # Run the NEAT algorithm
+    {best, stats} = Tyrex.NEAT.run(problem,
+      population_size: 150,
+      max_generations: 300,
+      compatibility_threshold: 3.0,
+      inputs: 11,  # One per letter position
+      outputs: 26,  # One per letter (a-z)
+      mutation_rates: %{
+        add_node_rate: 0.03,
+        add_connection_rate: 0.05,
+        weight_mutation_rate: 0.8,
+        toggle_connection_rate: 0.01
+      }
+    )
+
+    # Build the network to get the solution
+    network = Tyrex.NEAT.Network.create(best)
+    solution = decode_neat_output(network)
+
+    # Print results
+    IO.puts("=== Abracadabra Problem (NEAT) ===")
+    IO.puts("Best solution: #{solution}")
+    IO.puts("Fitness: #{best.fitness}")
+    IO.puts("Generations: #{stats.generations}")
+    IO.puts("Duration: #{stats.duration} seconds")
+    IO.puts("Network complexity: #{length(best.genes)} connections, #{MapSet.size(best.nodes)} nodes")
+
+    {best, stats, solution}
+  end
+
+  # Fitness function for standard GA
+  defp fitness_function(individual) do
+    target = "abracadabra"
+    candidate = Tyrex.Genotypes.String.to_string(individual)
+
+    # Count matching characters
+    target_chars = String.to_charlist(target)
+    candidate_chars = String.to_charlist(candidate)
+
+    Enum.zip(target_chars, candidate_chars)
+    |> Enum.count(fn {a, b} -> a == b end)
+  end
+
+  # Fitness function for NEAT
+  defp neat_fitness_function(genome, network) do
+    target = "abracadabra"
+    target_chars = String.to_charlist(target)
+
+    # Activate the network for each position in the target
+    total_correct = 0
+
+    # For NEAT, we'll use a simple input encoding:
+    # Each input position gets a 1.0 when it's being processed
+    for pos <- 0..(length(target_chars) - 1) do
+      # Create inputs (1.0 for current position, 0.0 for others)
+      inputs = List.duplicate(0.0, length(target_chars))
+              |> List.update_at(pos, fn _ -> 1.0 end)
+
+      # Activate the network and get outputs
+      outputs = Tyrex.NEAT.Network.activate(network, inputs)
+
+      # Find the highest output (winner-takes-all)
+      {_, max_idx} = outputs
+                     |> Enum.with_index()
+                     |> Enum.max_by(fn {val, _} -> val end)
+
+      # Convert to character
+      output_char = max_idx + ?a
+      target_char = Enum.at(target_chars, pos)
+
+      # Check if correct
+      if output_char == target_char do
+        total_correct = total_correct + 1
+      end
+    end
+
+    total_correct
+  end
+
+  # Termination function for both approaches
+  defp termination_function(population, _generation) do
+    best = Enum.max_by(population, & &1.fitness)
+    best.fitness >= 11  # "abracadabra" has 11 characters
+  end
+
+  # Helper function to decode NEAT output into a string
+  defp decode_neat_output(network) do
+    target_length = String.length("abracadabra")
+
+    # For each position, activate the network and get the output
+    Enum.map(0..(target_length - 1), fn pos ->
+      # Create inputs
+      inputs = List.duplicate(0.0, target_length)
+              |> List.update_at(pos, fn _ -> 1.0 end)
+
+      # Activate the network
+      outputs = Tyrex.NEAT.Network.activate(network, inputs)
+
+      # Find the highest output
+      {_, max_idx} = outputs
+                     |> Enum.with_index()
+                     |> Enum.max_by(fn {val, _} -> val end)
+
+      # Convert to character
+      max_idx + ?a
+    end)
+    |> List.to_string()
+  end
+end
