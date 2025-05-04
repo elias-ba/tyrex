@@ -11,7 +11,8 @@ defmodule Tyrex.MixProject do
       description: description(),
       package: package(),
       name: "Tyrex",
-      source_url: "https://github.com/elias-ba/tyrex"
+      source_url: "https://github.com/elias-ba/tyrex",
+      elixirc_paths: elixirc_paths(Mix.env())
     ]
   end
 
@@ -28,7 +29,7 @@ defmodule Tyrex.MixProject do
       {:benchee, "~> 1.1", only: :dev},
       {:statistics, "~> 0.6"},
       # For JSON serialization
-      {:poison, "~> 5.0"},
+      {:jason, "~> 1.4"},
       # For neural network operations, optional
       {:nx, "~> 0.5", optional: true}
     ]
@@ -50,4 +51,7 @@ defmodule Tyrex.MixProject do
       links: %{"GitHub" => "https://github.com/elias-ba/tyrex"}
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "examples", "test/support"]
+  defp elixirc_paths(_), do: ["lib", "examples"]
 end

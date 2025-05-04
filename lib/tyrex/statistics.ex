@@ -3,16 +3,32 @@ defmodule Tyrex.Statistics do
   Statistics for tracking evolution progress.
   """
 
+  @type t :: %__MODULE__{
+          start_time: DateTime.t() | nil,
+          end_time: DateTime.t() | nil,
+          generations: non_neg_integer(),
+          best_individual: struct() | nil,
+          best_fitness: [number()],
+          avg_fitness: [number()],
+          std_fitness: [number()],
+          population_sizes: [non_neg_integer()],
+          diversity: [number()],
+          duration: float()
+        }
+
+  @derive Jason.Encoder
+
   defstruct [
     :start_time,
     :end_time,
     generations: 0,
     best_individual: nil,
     best_fitness: [],
-    average_fitness: [],
+    avg_fitness: [],
+    std_fitness: [],
     population_sizes: [],
     diversity: [],
-    duration: 0
+    duration: 0.0
   ]
 
   @doc """
@@ -42,12 +58,16 @@ defmodule Tyrex.Statistics do
           stats.diversity ++ [current_diversity]
       end
 
+    fitness_values = [best.fitness | Enum.map(population, & &1.fitness)]
+    variance = calculate_variance(fitness_values)
+
     %{
       stats
       | generations: generation,
         best_individual: best,
         best_fitness: stats.best_fitness ++ [best.fitness],
-        average_fitness: stats.average_fitness ++ [avg_fitness],
+        avg_fitness: stats.avg_fitness ++ [avg_fitness],
+        std_fitness: stats.std_fitness ++ [variance],
         population_sizes: stats.population_sizes ++ [length(population)],
         diversity: diversity
     }
@@ -73,7 +93,8 @@ defmodule Tyrex.Statistics do
       %{
         generation: generation,
         best_fitness: Enum.at(stats.best_fitness, generation),
-        average_fitness: Enum.at(stats.average_fitness, generation),
+        avg_fitness: Enum.at(stats.avg_fitness, generation),
+        std_fitness: Enum.at(stats.std_fitness, generation),
         population_size: Enum.at(stats.population_sizes, generation),
         diversity:
           if(length(stats.diversity) > 0, do: Enum.at(stats.diversity, generation), else: nil)
@@ -94,7 +115,7 @@ defmodule Tyrex.Statistics do
 
     data =
       for i <- 0..(length(stats.best_fitness) - 1) do
-        "#{i}\t#{Enum.at(stats.best_fitness, i)}\t#{Enum.at(stats.average_fitness, i)}"
+        "#{i}\t#{Enum.at(stats.best_fitness, i)}\t#{Enum.at(stats.avg_fitness, i)}\t#{Enum.at(stats.std_fitness, i)}"
       end
 
     File.write!(data_file, Enum.join(data, "\n"))
@@ -107,7 +128,8 @@ defmodule Tyrex.Statistics do
     set ylabel "Fitness"
     set grid
     plot "#{data_file}" using 1:2 title "Best Fitness" with lines lw 2, \
-         "#{data_file}" using 1:3 title "Average Fitness" with lines lw 1
+         "#{data_file}" using 1:3 title "Average Fitness" with lines lw 1, \
+         "#{data_file}" using 1:4 title "Standard Deviation" with lines lw 1
     """
 
     script_file = Path.join(System.tmp_dir(), "fitness_plot.gp")
@@ -130,7 +152,8 @@ defmodule Tyrex.Statistics do
     ----------------
     Total Generations: #{stats.generations}
     Best Fitness: #{List.last(stats.best_fitness)}
-    Average Fitness (last generation): #{List.last(stats.average_fitness)}
+    Average Fitness (last generation): #{List.last(stats.avg_fitness)}
+    Standard Deviation (last generation): #{List.last(stats.std_fitness)}
     Duration: #{stats.duration} seconds
     Population Size: #{List.last(stats.population_sizes)}
     """
@@ -139,26 +162,34 @@ defmodule Tyrex.Statistics do
   @doc """
   Saves statistics to a JSON file.
   """
+  @spec save(t(), String.t()) :: {:ok, String.t()} | {:error, term()}
   def save(stats, filename) do
-    stats_map = Map.from_struct(stats)
-
-    json = Poison.encode!(stats_map, pretty: true)
-
-    File.write!(filename, json)
-
-    {:ok, filename}
+    case Jason.encode(stats, pretty: true) do
+      {:ok, json} -> File.write(filename, json)
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   @doc """
   Loads statistics from a JSON file.
   """
+  @spec load(String.t()) :: {:ok, t()} | {:error, term()}
   def load(filename) do
-    {:ok, json} = File.read(filename)
+    with {:ok, json} <- File.read(filename),
+         {:ok, map} <- Jason.decode(json) do
+      {:ok, struct(Tyrex.Statistics, map)}
+    end
+  end
 
-    {:ok, stats_map} = Poison.decode(json)
+  defp calculate_variance(values) do
+    n = length(values)
 
-    stats = struct(Tyrex.Statistics, Map.new(stats_map, fn {k, v} -> {String.to_atom(k), v} end))
-
-    {:ok, stats}
+    if n <= 1 do
+      0.0
+    else
+      mean = Enum.sum(values) / n
+      squared_diff_sum = Enum.sum(Enum.map(values, fn x -> :math.pow(x - mean, 2) end))
+      squared_diff_sum / (n - 1)
+    end
   end
 end

@@ -44,12 +44,16 @@ defmodule Tyrex.Examples.Abracadabra do
       termination: &termination_function/2
     }
 
+    target = "abracadabra"
+    input_size = String.length(target)
+
     {best, stats} = Tyrex.NEAT.run(problem,
       population_size: 150,
       max_generations: 300,
       compatibility_threshold: 3.0,
-      inputs: 11,
+      inputs: input_size,
       outputs: 26,
+      bias: false,
       mutation_rates: %{
         add_node_rate: 0.03,
         add_connection_rate: 0.05,
@@ -82,16 +86,14 @@ defmodule Tyrex.Examples.Abracadabra do
     |> Enum.count(fn {a, b} -> a == b end)
   end
 
-  defp neat_fitness_function(genome, network) do
+  defp neat_fitness_function(_genome, network) do
     target = "abracadabra"
     target_chars = String.to_charlist(target)
+    input_size = String.length(target)
 
-    total_correct = 0
-
-    # For NEAT, we'll use a simple input encoding:
-    # Each input position gets a 1.0 when it's being processed
-    for pos <- 0..(length(target_chars) - 1) do
-      inputs = List.duplicate(0.0, length(target_chars))
+    # Use Enum.reduce to count correct characters
+    Enum.reduce(0..(input_size - 1), 0, fn pos, acc ->
+      inputs = List.duplicate(0.0, input_size)
               |> List.update_at(pos, fn _ -> 1.0 end)
 
       outputs = Tyrex.NEAT.Network.activate(network, inputs)
@@ -104,11 +106,11 @@ defmodule Tyrex.Examples.Abracadabra do
       target_char = Enum.at(target_chars, pos)
 
       if output_char == target_char do
-        total_correct = total_correct + 1
+        acc + 1
+      else
+        acc
       end
-    end
-
-    total_correct
+    end)
   end
 
   defp termination_function(population, _generation) do
@@ -117,10 +119,11 @@ defmodule Tyrex.Examples.Abracadabra do
   end
 
   defp decode_neat_output(network) do
-    target_length = String.length("abracadabra")
+    target = "abracadabra"
+    input_size = String.length(target)
 
-    Enum.map(0..(target_length - 1), fn pos ->
-      inputs = List.duplicate(0.0, target_length)
+    Enum.map(0..(input_size - 1), fn pos ->
+      inputs = List.duplicate(0.0, input_size)
               |> List.update_at(pos, fn _ -> 1.0 end)
 
       outputs = Tyrex.NEAT.Network.activate(network, inputs)

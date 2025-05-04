@@ -133,8 +133,8 @@ defmodule Tyrex do
       next_generation =
         sorted_population
         |> Selection.select(selection_strategy)
-        |> Crossover.crossover(problem.genotype.crossover, crossover_rate)
-        |> Mutation.mutate(problem.genotype.mutate, mutation_rate)
+        |> Crossover.crossover(&problem.genotype.crossover(&1, &2, []), crossover_rate)
+        |> Mutation.mutate(&problem.genotype.mutate(&1, []), mutation_rate)
 
       next_generation_with_elites =
         elites ++ Enum.take(next_generation, population_size - elitism)
