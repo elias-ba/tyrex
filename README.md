@@ -1,8 +1,8 @@
-# Tyrex
+<p align="left"><img src="logo.png" alt="TYREX Logo" /></p>
 
-A comprehensive genetic programming and neuroevolution library for Elixir.
+---
 
-Tyrex provides implementations of standard genetic algorithms as well as the NEAT (NeuroEvolution of Augmenting Topologies) algorithm, allowing you to evolve solutions to a wide variety of problems.
+A comprehensive genetic programming and neuroevolution library for Elixir. Tyrex provides implementations of standard genetic algorithms as well as the NEAT (NeuroEvolution of Augmenting Topologies) algorithm, allowing you to evolve solutions to a wide variety of problems.
 
 ## Features
 
